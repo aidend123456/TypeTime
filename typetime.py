@@ -12,7 +12,7 @@ FPS = 60
 FONT_SIZE = 36
 WORD_DROP_INTERVAL = 2000  # milliseconds
 MIN_INTERVAL = 900         # minimum interval (ms) between new words
-SPEEDUP_SCORE_STEP = 3     # how often drop speed increases
+SPEEDUP_SCORE_STEP = 100   # how often drop speed increases
 LIVES = 10
 
 #word list
@@ -27,25 +27,32 @@ WORDS = [
 "slow", "fast", "easy", "hard", "medium", "practice", "perfect", "miss", "lose", "silly",
 "win", "start", "finish", "exit", "reset", "play", "type", "letter", "word", "text",
 "display", "color", "sound", "effect", "music", "volume", "mute", "background", "goofy",
-"foreground", "update", "frame", "delta", "collision", "detect", "move", "jump", "umbrella","galaxy","engine","puzzle","volcano","crystal","lantern","harmony","orbit","thunder","cactus","whisper","jungle","comet","dragon","ripple","velvet","midnight","prism","tornado", "adventure","breeze","cascade","dawn","echo","feather","glacier","harbor","illusion","jigsaw","kettle","labyrinth","meadow","pixel","quiver","ripple","summit","timber","utopia","vortex","wander","yarn","zenith", "nectar","pixel","quiver","ripple","summit","timber","utopia","vortex","wander","yarn","zenith", "opal","pixel","quiver","ripple","summit","timber","utopia","vortex","wander","yarn","zenith", "pebble","pixel","quiver","ripple",  "xenon", "yonder","zephyr","alpine","blizzard","coral","doodle","ember","fjord", "grove","horizon", "island","jade","knoll","lunar","mirage","nymph","oasis","pixel","quiver","ripple","summit","timber","utopia","vortex","wander","yarn","zenith","noodle","puddle","quokka","rocket","saffron","tulip","unicorn","velvet","whimsy","xylophone","yogurt","zodiac"
+"foreground", "update", "frame", "delta", "collision", "detect", "move", "jump", "umbrella","galaxy","engine","puzzle","volcano","crystal","lantern","harmony","orbit","thunder","cactus","whisper","jungle","comet","dragon","ripple","velvet","midnight","prism","tornado", "adventure","breeze","cascade","dawn","echo","feather","glacier","harbor","illusion","jigsaw","kettle","labyrinth","meadow","pixel","quiver","ripple","summit","timber","utopia","vortex","wander","yarn","zenith", "nectar","pixel","quiver","ripple","summit","timber","utopia","vortex","wander","yarn","zenith", "opal","pixel","quiver","ripple","summit","timber","utopia","vortex","wander","yarn","zenith", "pebble","pixel","quiver","ripple",  "xenon", "yonder","zephyr","alpine","blizzard","coral","doodle","ember","fjord", "grove","horizon", "island","jade","knoll","lunar","mirage","nymph","oasis","pixel","quiver","ripple","summit","timber","utopia","vortex","wander","yarn","zenith","noodle","puddle","quokka","rocket","saffron","tulip","unicorn","velvet","whimsy","xylophone","yogurt","zodiac", "lopsided","mystic","nectar","opal","pixel","quiver","ripple","summit","timber","utopia","vortex","wander","yarn", "racket","sizzle","tango","umpire","velcro","whisker","xenial","yodel","zesty"
 ]
 # --- Classes ---
 class Word:
-    def __init__(self, text, x, y, speed):
+    def __init__(self, text, x, y, speed, direction="down"):
         self.text = text
         self.x = x
         self.y = y
         self.speed = speed
+        self.direction = direction  # "down" or "right"
 
     def move(self):
-        self.y += self.speed
+        if self.direction == "down":
+            self.y += self.speed
+        elif self.direction == "right":
+            self.x += self.speed
 
     def draw(self, surface, font):
         img = font.render(self.text, True, (255,255,255))
         surface.blit(img, (self.x, self.y))
 
     def off_screen(self):
-        return self.y > HEIGHT
+        if self.direction == "down":
+            return self.y > HEIGHT
+        elif self.direction == "right":
+            return self.x > WIDTH
 
 class Poof:
     def __init__(self, x, y):
@@ -53,13 +60,16 @@ class Poof:
         self.y = y
         self.life = 18  # frames
         self.max_life = 18
+        # Pick the word ONCE
+        words = ["Good!", "Great!", "Yay!", "Cool!", "Nice!", "Wow!", "Amazing!"]
+        self.text = random.choice(words)
 
     def draw(self, surface):
         # Fade out and grow
         alpha = int(255 * (self.life / self.max_life))
         size = int(30 + 25 * (1 - self.life / self.max_life))
         font = pygame.font.SysFont(None, size)
-        img = font.render("Poof!", True, (255,255,100))
+        img = font.render(self.text, True, (255,255,100))
         img.set_alpha(alpha)
         rect = img.get_rect(center=(self.x, self.y))
         surface.blit(img, rect)
@@ -99,6 +109,35 @@ class Sparkle:
     def is_alive(self):
         return self.life > 0
 
+def draw_gradient_background(surface, top_color, bottom_color):
+    """Draw a vertical gradient background from top_color to bottom_color."""
+    for y in range(HEIGHT):
+        ratio = y / HEIGHT
+        r = int(top_color[0] * (1 - ratio) + bottom_color[0] * ratio)
+        g = int(top_color[1] * (1 - ratio) + bottom_color[1] * ratio)
+        b = int(top_color[2] * (1 - ratio) + bottom_color[2] * ratio)
+        pygame.draw.line(surface, (r, g, b), (0, y), (WIDTH, y))
+
+class MissPoof:
+    def __init__(self, x, y):
+        self.x = x
+        self.y = y
+        self.life = 18  # frames
+        self.max_life = 18
+
+    def draw(self, surface):
+        alpha = int(255 * (self.life / self.max_life))
+        size = int(30 + 25 * (1 - self.life / self.max_life))
+        font = pygame.font.SysFont(None, size)
+        img = font.render("Miss!", True, (255, 60, 60))
+        img.set_alpha(alpha)
+        rect = img.get_rect(center=(self.x, self.y))
+        surface.blit(img, rect)
+        self.life -= 1
+
+    def is_alive(self):
+        return self.life > 0
+
 # --- Main Game ---
 def game_loop(word_speed, drop_interval):
     screen = pygame.display.set_mode((WIDTH, HEIGHT))
@@ -122,12 +161,15 @@ def game_loop(word_speed, drop_interval):
 
     words = []
     poofs = []
+    miss_poofs = []
     sparkles = []
-    missed_words = []
     user_input = ""
     score = 0
     lives = LIVES
     next_word_time = pygame.time.get_ticks() + WORD_DROP_INTERVAL
+
+    # Detect hard mode (add this logic where you set up the game)
+    hard_mode = (word_speed == 1.0 and drop_interval == 1300)
 
     running = True
     lost = False
@@ -163,8 +205,20 @@ def game_loop(word_speed, drop_interval):
         # --- Add new word if it's time ---
         if now >= next_word_time:
             text = random.choice(WORDS)
-            x = random.randint(30, WIDTH - 140)
-            words.append(Word(text, x, 0, word_speed))
+            if hard_mode:
+                if random.choice([True, False]):
+                    # Vertical word
+                    x = random.randint(30, WIDTH - 140)
+                    y = 0
+                    words.append(Word(text, x, y, word_speed, direction="down"))
+                else:
+                    # Horizontal word
+                    x = 0
+                    y = random.randint(30, HEIGHT - 140)
+                    words.append(Word(text, x, y, word_speed, direction="right"))
+            else:
+                x = random.randint(30, WIDTH - 140)
+                words.append(Word(text, x, 0, word_speed, direction="down"))
             next_word_time = now + drop_interval
 
         # --- Move words ---
@@ -193,36 +247,30 @@ def game_loop(word_speed, drop_interval):
             if word.off_screen():
                 words.remove(word)
                 lives -= 1
-                missed_words.append(MissedWord(word.text))  # No x/y needed
+                # Place "Miss!" at the bottom for vertical, at the right edge for horizontal
+                if word.direction == "down":
+                    miss_poofs.append(MissPoof(word.x + 50, HEIGHT - 60))
+                elif word.direction == "right":
+                    miss_poofs.append(MissPoof(WIDTH - 60, word.y + 20))
                 user_input = ""  # Clear input when life is lost
                 if sfx_lose_life: sfx_lose_life.play()
                 if lives <= 0:
                     running = False
                     lost = True
 
-        # --- Update and draw missed words ---
-        for m in missed_words:
-            m.life -= 1
-        missed_words = [m for m in missed_words if m.is_alive()]
-
         # --- Draw everything ---
-        screen.fill((30, 30, 40))
+        draw_gradient_background(screen, (30, 30, 80), (10, 10, 30))
         for word in words:
             word.draw(screen, font)
         for poof in poofs:
             poof.draw(screen)
         poofs = [poof for poof in poofs if poof.is_alive()]
+        for miss_poof in miss_poofs:
+            miss_poof.draw(screen)
+        miss_poofs = [mp for mp in miss_poofs if mp.is_alive()]
         for sparkle in sparkles:
             sparkle.draw(screen)
         sparkles = [s for s in sparkles if s.is_alive()]
-        # Draw missed words centered in the middle of the screen, stacked vertically
-        missed_display = missed_words[-8:]
-        start_y = HEIGHT // 2 - (len(missed_display) * (FONT_SIZE + 6)) // 2
-        for i, missed in enumerate(missed_display):
-            img = font.render(missed.text, True, (255, 60, 60))
-            x = (WIDTH - img.get_width()) // 2
-            y = start_y + i * (FONT_SIZE + 6)
-            screen.blit(img, (x, y))
 
         # UI: Score, Lives, Input
         score_img = font.render(f"Score: {score}", True, (255,255,0))
@@ -239,7 +287,7 @@ def game_loop(word_speed, drop_interval):
     if lost:
         if sfx_game_over: sfx_game_over.play()
         screen.fill((30, 30, 40))
-        end_img = font.render("Game Over!", True, (255, 50, 50))
+        end_img = font.render("Game Over!", True, (255,50,50))
         score_img = font.render(f"Final Score: {score}", True, (255,255,0))
         hint_img = input_font.render("Press R to restart or ESC to exit...", True, (200,200,200))
         screen.blit(end_img, (WIDTH//2-100, HEIGHT//2-70))
@@ -304,7 +352,8 @@ def main_menu(screen, font, input_font):
     last_key = None
     key_timer = 0
     while True:
-        screen.fill((30, 30, 40))
+        # Draw gradient background
+        draw_gradient_background(screen, (30, 30, 80), (10, 10, 30))
         bounce = int(18 * abs(math.sin(t/36)))
         title = title_font.render("TypeTime", True, (255,220,0))
         screen.blit(title, (WIDTH//2 - title.get_width()//2, 60 + bounce))
@@ -339,7 +388,7 @@ def difficulty_menu(screen, font):
     difficulties = [
         ("Easy", 1.0, 2200),
         ("Medium", 1.4, 1500),
-        ("Hard", 2.0, 950)
+        ("Hard", 1.0, 1300),
     ]
     # Pre-render rects for mouse detection
     item_rects = []
